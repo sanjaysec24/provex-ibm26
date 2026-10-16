@@ -8,8 +8,10 @@ export function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const checkHealth = async () => {
-    setLoading(true);
+  const checkHealth = async (isManual = false) => {
+    if (isManual) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await fetchHealth();
@@ -22,7 +24,23 @@ export function App() {
   };
 
   useEffect(() => {
-    checkHealth();
+    let ignore = false;
+    fetchHealth()
+      .then((data) => {
+        if (!ignore) {
+          setHealth(data);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : 'Unable to connect to gateway');
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   return (
@@ -47,7 +65,7 @@ export function App() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={checkHealth}
+              onClick={() => checkHealth(true)}
               disabled={loading}
               className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border border-[#EAE5DC] bg-[#FAF8F5] hover:bg-[#F3EFE6] text-slate-700 transition"
               title="Refresh Health Status"
