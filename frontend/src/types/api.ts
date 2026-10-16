@@ -5,7 +5,7 @@ export type UserRole =
   | 'guest'
   | 'anonymous';
 
-export type DecisionAction = 'ALLOW' | 'REDACT_AND_ALLOW' | 'DENY';
+export type DecisionAction = 'ALLOW' | 'REDACT' | 'DENY';
 
 export interface HealthResponse {
   status: string;
@@ -19,11 +19,15 @@ export interface AuditReceipt {
   receipt_id: string;
   timestamp: string;
   algorithm: string;
+  target_resource: string;
+  record_id?: string | null;
   actor_role: string;
+  purpose: string;
+  policy_id: string;
   action_decision: DecisionAction;
-  total_fields: number;
-  redacted_fields_count: number;
-  redacted_field_names: string[];
+  permitted_fields: string[];
+  redacted_fields: string[];
+  blocked_fields: string[];
   payload_digest: string;
   receipt_digest: string;
 }
@@ -31,19 +35,26 @@ export interface AuditReceipt {
 export interface GatewayQueryRequest {
   query: string;
   actor_role: UserRole;
+  purpose?: string;
   actor_id?: string;
   target_resource?: string;
+  record_id?: string | null;
+  requested_fields?: string[] | null;
 }
 
 export interface GatewayQueryResponse {
   request_id: string;
   timestamp: string;
   actor_role: string;
+  purpose: string;
+  target_resource: string;
   decision: DecisionAction;
   decision_reason: string;
+  permitted_fields: string[];
   redacted_fields: string[];
   sanitized_payload?: Record<string, unknown>[] | null;
   audit_receipt: AuditReceipt;
+  auth_disclaimer?: string;
 }
 
 export interface ReceiptVerificationRequest {
@@ -54,5 +65,7 @@ export interface ReceiptVerificationResponse {
   is_valid: boolean;
   receipt_id: string;
   verified_at: string;
+  expected_digest: string;
+  supplied_digest: string;
   details: string;
 }

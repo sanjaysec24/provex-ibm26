@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.models.schemas import HealthResponse
+from app.api.routes_gateway import router as gateway_router
+from app.api.routes_audit import router as audit_router
 
 app = FastAPI(
     title="PROVEX AI Security Gateway",
-    description="Deterministic Zero-Trust AI Security Gateway & Audit System",
+    description="Deterministic Zero-Trust AI Security Gateway & Audit System (IBM Z Datathon 2026)",
     version="0.1.0"
 )
 
@@ -17,6 +19,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(gateway_router)
+app.include_router(audit_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
