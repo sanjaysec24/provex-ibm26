@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.adapters.base import DataSourceAdapter, InvalidResourceError, RecordNotFoundError
-from app.adapters.mock_adapter import MockSyntheticAdapter
+from app.adapters.mock_adapter import MockSyntheticAdapter, default_mock_adapter
 from app.policy.data_sanitizer import DataSanitizer
 from app.policy.engine import DeterministicPolicyEngine, PolicyDecisionResult
 from app.policy.rules import PolicyAction
@@ -38,7 +38,7 @@ class GatewayDataService:
     """
 
     def __init__(self, adapter: Optional[DataSourceAdapter] = None) -> None:
-        self.adapter = adapter or MockSyntheticAdapter()
+        self.adapter = adapter or default_mock_adapter
 
     def query_records(
         self,

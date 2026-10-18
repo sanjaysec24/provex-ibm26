@@ -97,3 +97,17 @@ class ReceiptVerificationResponse(BaseModel):
     expected_digest: str = Field(description="Recalculated canonical digest")
     supplied_digest: str = Field(description="Digest supplied on receipt")
     details: str = Field(description="Integrity verification explanation and cryptographic caveat")
+
+
+class DatasetUploadResponse(BaseModel):
+    filename: str = Field(description="Uploaded CSV filename")
+    target_resource: str = Field(description="Enterprise resource schema mapped")
+    row_count: int = Field(description="Number of records parsed and loaded")
+    detected_columns: List[str] = Field(description="Column headers discovered in CSV")
+    record_ids: List[str] = Field(description="List of primary record identifiers loaded")
+    preview_records: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Safe sample preview with sensitive fields masked"
+    )
+    message: str = Field(description="Status confirmation and security note")
+

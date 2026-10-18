@@ -4,6 +4,7 @@ import type {
   GatewayQueryResponse,
   ReceiptVerificationResponse,
   AuditReceipt,
+  DatasetUploadResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -69,5 +70,31 @@ export async function verifyAuditReceipt(receipt: AuditReceipt): Promise<Receipt
     }
     throw new Error(`Verification failed (${response.status}): ${errorDetail}`);
   }
+  return response.json();
+}
+
+export async function uploadDataset(file: File, targetResource = 'financial_records'): Promise<DatasetUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('target_resource', targetResource);
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/dataset/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorDetail = `HTTP ${response.status}`;
+    try {
+      const errJson = await response.json();
+      if (errJson.detail) {
+        errorDetail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      errorDetail = await response.text();
+    }
+    throw new Error(`Dataset upload failed (${response.status}): ${errorDetail}`);
+  }
+
   return response.json();
 }

@@ -9,7 +9,7 @@ from app.policy.rules import KNOWN_RESOURCE_SCHEMAS
 
 
 # Synthetic fictional test fixtures (100% offline, zero real PII or live credentials)
-SYNTHETIC_DATA_STORE: Dict[str, List[Dict[str, Any]]] = {
+INITIAL_SYNTHETIC_DATA_STORE: Dict[str, List[Dict[str, Any]]] = {
     "financial_records": [
         {
             "account_id": "ACC-FIN-1001",
@@ -88,6 +88,8 @@ SYNTHETIC_DATA_STORE: Dict[str, List[Dict[str, Any]]] = {
     ],
 }
 
+SYNTHETIC_DATA_STORE: Dict[str, List[Dict[str, Any]]] = copy.deepcopy(INITIAL_SYNTHETIC_DATA_STORE)
+
 
 class MockSyntheticAdapter(DataSourceAdapter):
     """
@@ -101,6 +103,12 @@ class MockSyntheticAdapter(DataSourceAdapter):
     def is_connected(self) -> bool:
         """Always connected locally via in-memory synthetic fixtures."""
         return True
+
+    def reset_default_fixtures(self) -> None:
+        """Restores in-memory store to original synthetic fixtures."""
+        self._data_store.clear()
+        for k, v in INITIAL_SYNTHETIC_DATA_STORE.items():
+            self._data_store[k] = copy.deepcopy(v)
 
     def list_records(self, resource: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -131,3 +139,41 @@ class MockSyntheticAdapter(DataSourceAdapter):
         raise RecordNotFoundError(
             f"Record with ID '{record_id}' not found in resource '{resource}'."
         )
+
+    def load_dataset(self, resource: str, records: List[Dict[str, Any]], prepend: bool = True) -> int:
+        """
+        Ingests user-uploaded records into the in-memory store for the specified resource.
+        Preserves existing synthetic fixtures while making uploaded records immediately queryable.
+        """
+        if resource not in KNOWN_RESOURCE_SCHEMAS:
+            raise InvalidResourceError(f"Resource '{resource}' is not recognized or supported.")
+
+        if resource not in self._data_store:
+            self._data_store[resource] = []
+
+        id_field = "transaction_id" if resource == "transaction_logs" else "account_id"
+        current_records = self._data_store[resource]
+
+        # Update existing records with same ID or add new records
+        existing_ids = {r.get(id_field) for r in current_records if id_field in r}
+        new_records = []
+        for r in records:
+            rid = r.get(id_field)
+            if rid and rid in existing_ids:
+                # Replace matching record
+                for idx, existing in enumerate(current_records):
+                    if existing.get(id_field) == rid:
+                        current_records[idx] = copy.deepcopy(r)
+            else:
+                new_records.append(copy.deepcopy(r))
+
+        if prepend:
+            self._data_store[resource] = new_records + current_records
+        else:
+            self._data_store[resource].extend(new_records)
+
+        return len(records)
+
+
+# Global default in-memory adapter instance for runtime consistency
+default_mock_adapter = MockSyntheticAdapter()

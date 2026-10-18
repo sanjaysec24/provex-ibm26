@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.models.schemas import HealthResponse
 from app.api.routes_gateway import router as gateway_router
 from app.api.routes_audit import router as audit_router
+from app.api.routes_dataset import router as dataset_router
 
 app = FastAPI(
     title="PROVEX AI Security Gateway",
@@ -23,6 +24,7 @@ app.add_middleware(
 # Register routers
 app.include_router(gateway_router)
 app.include_router(audit_router)
+app.include_router(dataset_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])

@@ -69,3 +69,13 @@ export interface ReceiptVerificationResponse {
   supplied_digest: string;
   details: string;
 }
+
+export interface DatasetUploadResponse {
+  filename: string;
+  target_resource: string;
+  row_count: number;
+  detected_columns: string[];
+  record_ids: string[];
+  preview_records: Record<string, unknown>[];
+  message: string;
+}

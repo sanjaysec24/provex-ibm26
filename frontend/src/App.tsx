@@ -17,14 +17,19 @@ import {
   Database,
   History,
   Info,
+  UploadCloud,
+  FileSpreadsheet,
+  Table,
+  Check,
 } from 'lucide-react';
-import { fetchHealth, submitGatewayQuery, verifyAuditReceipt } from './services/api';
+import { fetchHealth, submitGatewayQuery, verifyAuditReceipt, uploadDataset } from './services/api';
 import { runSimulatedAiAnalysis } from './services/simulatedAi';
 import type {
   HealthResponse,
   GatewayQueryResponse,
   ReceiptVerificationResponse,
   UserRole,
+  DatasetUploadResponse,
 } from './types/api';
 
 const PRESETS = [
@@ -96,6 +101,54 @@ export function App() {
   const [tamperedResult, setTamperedResult] = useState<ReceiptVerificationResponse | null>(null);
   const [tamperedError, setTamperedError] = useState<string | null>(null);
   const [tamperExplanation, setTamperExplanation] = useState<string | null>(null);
+
+  // Dataset Ingestion State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadResource, setUploadResource] = useState<string>('financial_records');
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadResponse, setUploadResponse] = useState<DatasetUploadResponse | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleFileUpload = async (fileToUpload?: File) => {
+    const file = fileToUpload || selectedFile;
+    if (!file) {
+      setUploadError('Please select a valid CSV file to upload.');
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const resp = await uploadDataset(file, uploadResource);
+      setUploadResponse(resp);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Dataset upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleLoadSampleCsv = () => {
+    const sampleCsv = `account_id,customer_name,ssn,credit_card_number,account_balance,transaction_amount,transaction_date,risk_score,suspicious_flag,audit_notes
+ACC-DEMO-01,Elena Rostova,000-88-1111,4111-8888-0000-1111,142500.00,12000.00,2026-10-18T08:00:00Z,0.14,false,Standard wealth portfolio review completed.
+ACC-DEMO-02,Marcus Vance,000-88-2222,4111-8888-0000-2222,8900.00,45000.00,2026-10-18T08:15:00Z,0.85,true,High velocity outflow exceeding baseline threshold.
+ACC-DEMO-03,Kiran Patel,000-88-3333,4111-8888-0000-3333,53000.00,320.50,2026-10-18T08:30:00Z,0.03,false,Routine commercial accounts payroll deposit.`;
+    const blob = new Blob([sampleCsv], { type: 'text/csv' });
+    const file = new File([blob], 'commercial_sample_dataset.csv', { type: 'text/csv' });
+    setSelectedFile(file);
+    setUploadResource('financial_records');
+    handleFileUpload(file);
+  };
+
+  const selectUploadedRecordForQuery = (recId: string) => {
+    setRecordId(recId);
+    if (uploadResponse) {
+      setTargetResource(uploadResponse.target_resource);
+    }
+    setQuery(`Analyze liquidity and transaction patterns for uploaded account ${recId}.`);
+    setActorRole('financial_analyst');
+    setPurpose('portfolio_analysis');
+    setRequestedFieldsInput('account_id, account_balance, transaction_amount, risk_score, ssn, credit_card_number');
+  };
 
   // Load Health
   const loadHealth = async (isManual = false) => {
@@ -365,6 +418,200 @@ export function App() {
             </code>
           </div>
         )}
+
+        {/* Dataset Ingestion & Upload Section */}
+        <section className="bg-white rounded-2xl border border-[#EAE5DC] p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE5DC] pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <UploadCloud className="w-5 h-5 text-sky-600" />
+                <h2 className="text-base font-bold text-slate-900 tracking-tight">Enterprise Dataset Ingestion (CSV)</h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Fail-Closed Schema Gate
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ingest synthetic data into the in-memory adapter. Columns must strictly conform to the target resource schema.
+                Raw unrestricted records remain server-side behind the policy engine.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLoadSampleCsv}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 transition shadow-2xs"
+                title="Load 3 realistic synthetic commercial records"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-sky-700" />
+                <span>Load Demo Sample CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+            <div className="sm:col-span-6 space-y-1">
+              <label htmlFor="csv-file-input" className="block text-xs font-semibold text-slate-700">
+                Select Local CSV File
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="csv-file-input"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0]);
+                      setUploadError(null);
+                    }
+                  }}
+                  className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#EAE5DC] file:text-xs file:font-semibold file:bg-[#FAF8F5] hover:file:bg-[#F3EFE6] file:text-slate-700"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label htmlFor="upload-resource-select" className="block text-xs font-semibold text-slate-700">
+                Target Resource
+              </label>
+              <select
+                id="upload-resource-select"
+                value={uploadResource}
+                onChange={(e) => setUploadResource(e.target.value)}
+                className="w-full text-xs bg-[#FAF8F5] border border-[#EAE5DC] rounded-lg p-2 focus:outline-none focus:border-sky-500"
+              >
+                <option value="financial_records">financial_records</option>
+                <option value="customer_accounts">customer_accounts</option>
+                <option value="transaction_logs">transaction_logs</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <button
+                type="button"
+                onClick={() => handleFileUpload()}
+                disabled={uploading || !selectedFile}
+                className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition disabled:opacity-40"
+              >
+                {uploading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Validating & Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Upload & Register</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {uploadError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+          )}
+
+          {uploadResponse && (
+            <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-700" />
+                  <span className="text-xs font-bold text-emerald-950">
+                    Dataset Ingested: {uploadResponse.filename}
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 bg-white border border-emerald-200 rounded text-emerald-800">
+                    {uploadResponse.row_count} records
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 bg-white border border-emerald-200 rounded text-slate-700">
+                    {uploadResponse.target_resource}
+                  </span>
+                </div>
+                <span className="text-[11px] text-emerald-800 font-medium">In-Memory Adapter Ready</span>
+              </div>
+
+              {/* Detected Columns */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">
+                  Validated Schema Columns:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {uploadResponse.detected_columns.map((col) => (
+                    <span key={col} className="text-[10px] font-mono px-1.5 py-0.5 bg-white border border-[#EAE5DC] rounded text-slate-700">
+                      {col}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Clickable Record IDs for Querying */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <Table className="w-3.5 h-3.5 text-sky-700" />
+                  <span className="text-xs font-semibold text-slate-800">
+                    Query an Uploaded Record through Security Gateway:
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {uploadResponse.record_ids.map((recId) => (
+                    <button
+                      key={recId}
+                      type="button"
+                      onClick={() => selectUploadedRecordForQuery(recId)}
+                      className="inline-flex items-center gap-1.5 text-xs font-mono font-medium px-2.5 py-1 rounded-lg border border-sky-300 bg-white hover:bg-sky-50 text-sky-800 transition shadow-2xs"
+                      title="Load this record ID into the Secure Query form"
+                    >
+                      <span>{recId}</span>
+                      <ArrowRight className="w-3 h-3 text-sky-500" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Safe Masked Preview Table */}
+              {uploadResponse.preview_records.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-700">
+                      Sanitized Server-Side Preview (Sensitive PII / PANs Masked):
+                    </span>
+                    <span className="text-[10px] text-slate-500 italic">
+                      Zero unmasked PII passed to browser
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto border border-emerald-200/80 rounded-lg bg-white">
+                    <table className="min-w-full text-[11px] divide-y divide-[#EAE5DC]">
+                      <thead className="bg-[#FAF8F5]">
+                        <tr>
+                          {uploadResponse.detected_columns.slice(0, 6).map((c) => (
+                            <th key={c} className="px-2.5 py-1.5 text-left font-mono font-semibold text-slate-600">
+                              {c}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#EAE5DC]">
+                        {uploadResponse.preview_records.map((row, rIdx) => (
+                          <tr key={rIdx} className="hover:bg-slate-50/50">
+                            {uploadResponse.detected_columns.slice(0, 6).map((c) => (
+                              <td key={c} className="px-2.5 py-1.5 font-mono text-slate-700 whitespace-nowrap">
+                                {String(row[c] !== undefined ? row[c] : '')}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* Section 2: New Secure Request Panel */}
         <section className="bg-white rounded-2xl border border-[#EAE5DC] p-6 shadow-xs space-y-5">
